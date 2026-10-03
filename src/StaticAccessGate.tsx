@@ -4,7 +4,7 @@ import { LockKeyhole, Mountain, ShieldCheck } from 'lucide-react';
 const SESSION_KEY = 'global_landslide_pages_session';
 const SESSION_MS = 12 * 60 * 60 * 1000;
 // 用 `pnpm set-password` 修改；这里只保存 SHA-256 摘要，不保存明文。
-const PASSWORD_SHA256 = '155f652acab66927f5b82ff33a94f44df9df8a79a2e79b82505901b50fd796ca';
+const PASSWORD_SHA256 = '08e2c8d8fa32bb870b29fba8fff2736a555376d88d1df063580195157e446fff';
 const IS_GITHUB_PAGES = import.meta.env.MODE === 'github-pages';
 
 function validSession() {
