@@ -1,0 +1,25 @@
+name: Probe NASA LHASA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: NCCS download directory
+        run: |
+          curl -sSL -m 60 -o nccs.html -w "HTTP %{http_code}, %{size_download} bytes\n" https://maps.nccs.nasa.gov/download/landslides/nowcast/ || true
+          grep -oE 'href="[^"]+"' nccs.html | head -60 || true
+      - name: PMM publisher search
+        run: |
+          curl -sSL -m 60 "https://pmmpublisher.pps.eosdis.nasa.gov/opensearch?q=global_landslide_nowcast&limit=3" | head -c 4000 || true
+          echo
+      - name: Latest nowcast file size
+        run: |
+          f=$(grep -oE 'href="[^"]+\.(tif|nc4|nc)"' nccs.html | tail -1 | sed 's/href="//;s/"$//')
+          echo "latest: $f"
+          if [ -n "$f" ]; then
+            case "$f" in http*) u="$f";; /*) u="https://maps.nccs.nasa.gov$f";; *) u="https://maps.nccs.nasa.gov/download/landslides/nowcast/$f";; esac
+            curl -sSIL -m 60 "$u" | grep -iE '^(HTTP|content-length|content-type|access-control)' || true
+          fi
