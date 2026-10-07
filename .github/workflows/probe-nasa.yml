@@ -7,19 +7,21 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: NCCS download directory
+      - name: Viewer scripts
         run: |
-          curl -sSL -m 60 -o nccs.html -w "HTTP %{http_code}, %{size_download} bytes\n" https://maps.nccs.nasa.gov/download/landslides/nowcast/ || true
-          grep -oE 'href="[^"]+"' nccs.html | head -60 || true
-      - name: PMM publisher search
+          base=https://pmmpublisher.pps.eosdis.nasa.gov/swagger
+          curl -sSL -m 60 -o viewer.html "$base/index.html"
+          grep -oE 'src="[^"]+\.js[^"]*"' viewer.html | sed 's/src="//;s/"$//' | sort -u > scripts.txt
+          cat scripts.txt
+          mkdir -p js
+          while read -r s; do
+            case "$s" in http*) u="$s";; /*) u="https://pmmpublisher.pps.eosdis.nasa.gov$s";; *) u="$base/$s";; esac
+            curl -sSL -m 60 -o "js/$(basename "${s%%\?*}")" "$u" || true
+          done < scripts.txt
+          ls -la js
+      - name: Landslide URLs in scripts
         run: |
-          curl -sSL -m 60 "https://pmmpublisher.pps.eosdis.nasa.gov/opensearch?q=global_landslide_nowcast&limit=3" | head -c 4000 || true
-          echo
-      - name: Latest nowcast file size
+          grep -ohE "[\"'][^\"' ]*(landslide|nowcast|lhasa|\.tif|\.nc4)[^\"' ]*[\"']" viewer.html js/*.js | sort -u | head -80 || true
+      - name: Landslide code context
         run: |
-          f=$(grep -oE 'href="[^"]+\.(tif|nc4|nc)"' nccs.html | tail -1 | sed 's/href="//;s/"$//')
-          echo "latest: $f"
-          if [ -n "$f" ]; then
-            case "$f" in http*) u="$f";; /*) u="https://maps.nccs.nasa.gov$f";; *) u="https://maps.nccs.nasa.gov/download/landslides/nowcast/$f";; esac
-            curl -sSIL -m 60 "$u" | grep -iE '^(HTTP|content-length|content-type|access-control)' || true
-          fi
+          grep -n -iE "landslide|nowcast" js/*.js viewer.html | grep -iE "url|http|tif|nc4|href|download|\+" | cut -c1-400 | head -60 || true
