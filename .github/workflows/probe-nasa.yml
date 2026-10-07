@@ -7,21 +7,24 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Viewer scripts
+      - name: A viewer image and script paths
         run: |
-          base=https://pmmpublisher.pps.eosdis.nasa.gov/swagger
-          curl -sSL -m 60 -o viewer.html "$base/index.html"
-          grep -oE 'src="[^"]+\.js[^"]*"' viewer.html | sed 's/src="//;s/"$//' | sort -u > scripts.txt
-          cat scripts.txt
-          mkdir -p js
-          while read -r s; do
-            case "$s" in http*) u="$s";; /*) u="https://pmmpublisher.pps.eosdis.nasa.gov$s";; *) u="$base/$s";; esac
-            curl -sSL -m 60 -o "js/$(basename "${s%%\?*}")" "$u" || true
-          done < scripts.txt
-          ls -la js
-      - name: Landslide URLs in scripts
+          curl -sSL -m 60 -o v.html https://pmmpublisher.pps.eosdis.nasa.gov/swagger/index.html
+          grep -oE '(src|href)="[^"]+"' v.html | grep -vE '\.css' | sort -u | head -40
+          echo "----- png / data urls"
+          grep -oE "[\"'][^\"' ]*(\.png|\.json|\.tif|gpmweb|pmmpublisher|/pub/)[^\"' ]*[\"']" v.html | sort -u | head -40
+      - name: B landslides.nasa.gov viewer
         run: |
-          grep -ohE "[\"'][^\"' ]*(landslide|nowcast|lhasa|\.tif|\.nc4)[^\"' ]*[\"']" viewer.html js/*.js | sort -u | head -80 || true
-      - name: Landslide code context
+          curl -sSL -m 60 -o lv.html -w "HTTP %{http_code} -> %{url_effective}\n" https://landslides.nasa.gov/viewer/ || true
+          grep -oE "(webmap|appid|id)=[0-9a-f]{32}|[0-9a-f]{32}|https?://[^\"' ]*(arcgis|MapServer|ImageServer|FeatureServer)[^\"' ]*" lv.html | sort -u | head -30 || true
+          for id in $(grep -oE '[0-9a-f]{32}' lv.html | sort -u | head -3); do
+            echo "===== item $id"
+            curl -sSL -m 60 "https://www.arcgis.com/sharing/rest/content/items/$id/data?f=json" | grep -oE 'https?://[^"]*(Server|services)[^"]*' | sort -u | head -20 || true
+          done
+      - name: C NASA disasters NRT services
         run: |
-          grep -n -iE "landslide|nowcast" js/*.js viewer.html | grep -iE "url|http|tif|nc4|href|download|\+" | cut -c1-400 | head -60 || true
+          curl -sSL -m 60 "https://maps.disasters.nasa.gov/ags03/rest/services/NRT?f=json" | head -c 3000; echo
+          echo "===== landslide_nowcast info"
+          curl -sSL -m 60 "https://maps.disasters.nasa.gov/ags03/rest/services/NRT/landslide_nowcast/ImageServer?f=json" | grep -oE '"(timeInfo|timeExtent|pixelType|extent|minValues|maxValues)"[^]]*\]' | head -10 || true
+          echo "===== latest rasters"
+          curl -sSL -m 60 "https://maps.disasters.nasa.gov/ags03/rest/services/NRT/landslide_nowcast/ImageServer/query?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount=5&f=json" | head -c 2000; echo
