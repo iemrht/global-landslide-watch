@@ -1,3 +1,4 @@
+import { readShakeMap, clearShakeMapCache } from '@/lib/shakemap';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { writeArrayBuffer } from 'geotiff';
@@ -177,6 +178,23 @@ const PROBABILITY_STOPS = [
   { min: 0.01, color: '#f8bd72', label: '1–3%' },
   { min: 0.001, color: '#fff0ad', label: '0.1–1%' },
 ];
+
+type LayerMode = 'official' | 'pga' | 'mmi';
+const SHAKING_COLORS = ['#ffffff','#bfccff','#80ffff','#7dff73','#ffff00','#ffb000','#ff7000','#ff0000','#c80000'];
+const MMI_STOPS = ['I · 无感','II–III · 弱','IV · 轻','V · 中等','VI · 强','VII · 很强','VIII · 严重','IX · 剧烈','X+ · 极强'].map((label,i)=>({min:[1,2,4,5,6,7,8,9,10][i],color:SHAKING_COLORS[i],label})).reverse();
+const PGA_STOPS = [0,0.000464,0.00297,0.0276,0.062,0.115,0.215,0.401,0.747].map((min,i)=>({min,color:SHAKING_COLORS[i],label:i===8?'≥ 0.747 g':`${min}–${[0.000464,0.00297,0.0276,0.062,0.115,0.215,0.401,0.747][i]} g`})).reverse();
+function layerStyle(mode: LayerMode) {
+  const stops=mode==='official'?PROBABILITY_STOPS:mode==='pga'?PGA_STOPS:MMI_STOPS;
+  const label=mode==='official'?'官方滑坡概率':mode==='pga'?'地震动 PGA':'地震烈度 MMI';
+  const note=mode==='official'?'概率值为 0–1；低于 0.1% 透明。':mode==='pga'?'峰值地面加速度，单位 g。':'USGS 修订麦加利烈度 MMI，不等同于中国地震烈度表。';
+  const color=(v:number):Rgba=>{
+    if(mode==='official') return probabilityRgba(v);
+    if(!Number.isFinite(v)||v<(mode==='mmi'?1:0)) return [0,0,0,0];
+    const hex=(stops.find(s=>v>=s.min)??stops[stops.length-1]).color;
+    return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16),255];
+  };
+  return {stops,label,note,color};
+}
 
 type VerifiedEventOverride = {
   magnitude: number;
@@ -525,21 +543,22 @@ function renderMapRaster(raster: RasterData, mode: DisplayMode, color: (value: n
 
 async function createRiskMapPoster(options: {
   raster: RasterData; bounds: L.LatLngBounds; posterWidth: number;
-  layerLabel: string; event: EarthquakeFeature;
+  layerMode: LayerMode; layerLabel: string; event: EarthquakeFeature;
   overlayOpacity: number; basemapMode: ExportBasemap; displayMode: DisplayMode; reportNotes: string;
   onProgress: (message: string) => void;
 }) {
   const { raster, bounds, posterWidth, layerLabel, event, overlayOpacity, basemapMode, displayMode, onProgress } = options;
   const basemap = EXPORT_BASEMAPS[basemapMode];
-  const legend = PROBABILITY_STOPS.map((stop) => ({ color: stop.color, label: stop.label }));
+  const style = layerStyle(options.layerMode);
+  const legend = style.stops.map((stop) => ({ color: stop.color, label: stop.label }));
   const result = await renderRiskPoster({
     raster, width: posterWidth, bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
-    title: `${formatChineseDate(event.properties.time)}（UTC）  M${event.properties.mag.toFixed(1)} 地震滑坡概率分布图`,
+    title: `${formatChineseDate(event.properties.time)}（UTC）  M${event.properties.mag.toFixed(1)} ${style.label}分布图`,
     place: event.properties.place,
     subtitle: `${layerLabel} · ${basemap.label}底图 · WGS 84`,
-    legendTitle: '滑坡概率图例',
+    legendTitle: `${style.label}图例`,
     legend,
-    description: `${formatUtc(event.properties.time)}，${event.properties.place} 发生 ${event.properties.magType ?? 'M'} ${event.properties.mag.toFixed(1)} 级地震，震源深度 ${event.geometry.coordinates[2].toFixed(1)} km。震中位于 ${mapCoordinate(event.geometry.coordinates[1], 'lat', 4)}、${mapCoordinate(event.geometry.coordinates[0], 'lon', 4)}。本图展示所选区域 USGS 官方模型估计的地震滑坡发生概率空间分布。颜色由浅黄至深红表示概率逐级增大；概率分级不代表实测滑坡边界或已确认灾情。`,
+    description: `${formatUtc(event.properties.time)}，${event.properties.place} 发生 ${event.properties.magType ?? 'M'} ${event.properties.mag.toFixed(1)} 级地震，震源深度 ${event.geometry.coordinates[2].toFixed(1)} km。震中位于 ${mapCoordinate(event.geometry.coordinates[1], 'lat', 4)}、${mapCoordinate(event.geometry.coordinates[0], 'lon', 4)}。本图展示所选区域的 ${style.label}。${style.note}`,
     notes: options.reportNotes.trim(),
     eventLines: [
       `事件：${event.properties.place}（${event.id}）`,
@@ -552,13 +571,13 @@ async function createRiskMapPoster(options: {
       `当前图层：${layerLabel}`,
       `原生栅格：${raster.width} × ${raster.height} 像元；${raster.name}`,
       displayMode === 'smooth' ? '成图：双线性显示平滑；不提高数据实际分辨率，分析栅格数值及 NoData 不变。' : '成图：原生像元显示；分析栅格数值及 NoData 不变。',
-      `变量：滑坡概率 0–1；低于 ${PROBABILITY_FLOOR_LABEL} 的区域透明。`,
-      '模型来源：USGS Ground Failure 当前事件已发布产品，主滑坡模型 Nowicki Jessee et al. (2018)。',
+      style.note,
+      options.layerMode === 'official' ? '模型来源：USGS Ground Failure，Nowicki Jessee et al. (2018)。' : '数据来源：USGS ShakeMap grid.xml 原始网格。',
       `生成时间：${formatUtc(Date.now())}`,
     ],
     attribution: `${basemap.attribution}。底图及成图投影：Web Mercator（EPSG:3857）；输入及 GeoTIFF：WGS 84（EPSG:4326）。`,
     epicentre: [event.geometry.coordinates[0], event.geometry.coordinates[1]],
-    opacity: overlayOpacity, displayMode, color: probabilityRgba,
+    opacity: overlayOpacity, displayMode, color: style.color,
     paintBasemap: (context, box) => drawBasemapTiles(context, bounds, box.x, box.y, box.width, box.height, basemapMode, (done, total) => {
       if (done === total || done % 16 === 0) onProgress(`正在拼接${basemap.label} ${done}/${total}…`);
     }),
@@ -617,6 +636,8 @@ function Dashboard() {
   const [posterWidth, setPosterWidth] = useState(3600);
   const [exportBasemap, setExportBasemap] = useState<ExportBasemap>('satellite');
   const [exportStatus, setExportStatus] = useState('先框选范围或采用当前地图视窗');
+  const [layerMode, setLayerMode] = useState<LayerMode>('official');
+  const currentStyle = layerStyle(layerMode);
   const [activeRasterName, setActiveRasterName] = useState('');
   const [viewportOnly, setViewportOnly] = useState(false);
   const [viewportBounds, setViewportBounds] = useState<L.LatLngBounds | null>(null);
@@ -927,6 +948,7 @@ function Dashboard() {
 
   const groundFailure = useMemo(() => chooseProduct(detail?.properties.products?.['ground-failure']), [detail]);
   const shakeMap = useMemo(() => chooseProduct(detail?.properties.products?.shakemap), [detail]);
+  const shakeGridContent = shakeMap?.contents['download/grid.xml'];
   const officialTifContent = officialContent(groundFailure, '.tif');
   const officialPngContent = officialContent(groundFailure, '.png');
 
@@ -950,6 +972,16 @@ function Dashboard() {
       activeExportRasterRef.current = null;
       replaceOverlay(null);
       setActiveRasterName('');
+      if (layerMode !== 'official') {
+        if (!shakeGridContent) throw new Error('该事件尚未发布可用的 ShakeMap 网格，无法显示 PGA / MMI。');
+        const raster = await readShakeMap(shakeGridContent.url, layerMode, rasterController.signal);
+        if (cancelled) return;
+        const layer = L.imageOverlay(renderMapRaster(raster, displayMode, currentStyle.color).toDataURL('image/png'), mapBoundsForRaster(raster), {opacity});
+        activeExportRasterRef.current = raster; setActiveRasterName(raster.name); replaceOverlay(layer);
+        if (!exportBounds) mapRef.current?.fitBounds(mapBoundsForRaster(raster), {padding:[28,28]});
+        setLayerStatus(`${raster.name} · 版本 ${shakeMap?.properties.version ?? '—'} · 已加载`);
+        return;
+      }
       if (!groundFailure) throw new Error('该事件没有 USGS Ground Failure 产品，不能生成官方滑坡概率图；未发布不代表无风险。');
       const content = officialPngContent;
       const rasterContent = officialTifContent;
@@ -992,7 +1024,7 @@ function Dashboard() {
 
     return () => { cancelled = true; rasterController.abort(); if (imageObjectUrl) URL.revokeObjectURL(imageObjectUrl); };
   // Editing the export selection is not a request to reload the layer.
-  }, [detail, displayMode, groundFailure, officialPngContent, officialTifContent, opacity, replaceOverlay, selectedId]);
+  }, [detail, layerMode, shakeMap, shakeGridContent, loadRevision, displayMode, groundFailure, officialPngContent, officialTifContent, opacity, replaceOverlay, selectedId]);
 
   function fitRegion(value: RegionKey) {
     setRegion(value);
@@ -1026,6 +1058,10 @@ function Dashboard() {
   async function getRasterForExport() {
     if (!detail || detail.id !== selectedId) throw new Error('请等待当前地震详情加载完成后再导出。');
     if (!exportBounds) throw new Error('请先选择导出范围。');
+    if (layerMode !== 'official') {
+      if (!shakeGridContent) throw new Error('当前事件没有 ShakeMap 网格。');
+      return readShakeMap(shakeGridContent.url, layerMode, undefined, [exportBounds.getWest(),exportBounds.getSouth(),exportBounds.getEast(),exportBounds.getNorth()]);
+    }
     const content = officialTifContent;
     if (!content) throw new Error('当前事件未发布官方滑坡概率栅格。');
     return readRemoteRaster(content.url, '官方滑坡概率', content.length, {
@@ -1043,7 +1079,7 @@ function Dashboard() {
     try {
       const source = await getRasterForExport();
       const cropped = source;
-      const stem = exportStem(selectedId);
+      const stem = `${exportStem(selectedId)}_${layerMode}`;
       if (format === 'geotiff') {
         const noData = -9999;
         const values = new Float32Array(cropped.width * cropped.height);
@@ -1067,17 +1103,17 @@ function Dashboard() {
         });
         downloadBlob(new Blob([buffer], { type: 'image/tiff' }), `${stem}.tif`);
       } else if (format === 'png') {
-        const rendered = canvasForRaster(cropped, (value) => value, probabilityRgba).canvas;
+        const rendered = canvasForRaster(cropped, (value) => value, currentStyle.color).canvas;
         const blob = await new Promise<Blob>((resolve, reject) => rendered.toBlob((value) => value ? resolve(value) : reject(new Error('PNG 编码失败')), 'image/png'));
         downloadBlob(blob, `${stem}.png`);
       } else {
         if (!selectedSummary) throw new Error('请先选择地震事件。');
-        const layerLabel = 'USGS Ground Failure 官方滑坡概率';
+        const layerLabel = currentStyle.label;
         const poster = await createRiskMapPoster({
           raster: cropped,
           bounds: exportBounds,
           posterWidth,
-          layerLabel,
+          layerLabel, layerMode,
           event: selectedSummary,
           overlayOpacity: opacity,
           basemapMode: exportBasemap,
@@ -1172,10 +1208,10 @@ function Dashboard() {
 
       <main className="map-workspace">
         <div ref={mapElementRef} className="map-canvas" aria-label="全球地震与滑坡概率地图" />
-        <div className="map-status"><span className={layerError ? 'status-indicator error' : 'status-indicator'} /><span>{layerError || layerStatus}</span><button className="reload-map" onClick={() => { clearRemoteRasterCache(); setLoadRevision((v) => v + 1); baseRestartRef.current(); }}><RefreshCw />重新加载</button></div>
+        <div className="map-status"><span className={layerError ? 'status-indicator error' : 'status-indicator'} /><span>{layerError || layerStatus}</span><button className="reload-map" onClick={() => { clearRemoteRasterCache(); clearShakeMapCache(); setLoadRevision((v) => v + 1); baseRestartRef.current(); }}><RefreshCw />重新加载</button></div>
         <div className="basemap-status" role="status">{basemapStatus}</div>
-        <div className="legend-card"><strong>滑坡概率</strong>{PROBABILITY_STOPS.map((stop) => <span key={stop.min}><i style={{ background: stop.color }} />{stop.label}</span>)}<small>低于 {PROBABILITY_FLOOR_LABEL} 透明</small></div>
-        <div className="map-attribution-note">概率表示区域尺度的地震滑坡发生可能性，不等同于具体斜坡的稳定性判定。</div>
+        <div className="legend-card"><strong>{currentStyle.label}</strong>{currentStyle.stops.map((stop) => <span key={stop.min}><i style={{ background: stop.color }} />{stop.label}</span>)}<small>{currentStyle.note}</small></div>
+        <div className="map-attribution-note">{layerMode === 'official' ? '概率表示区域尺度的地震滑坡发生可能性，不等同于具体斜坡的稳定性判定。' : currentStyle.note}</div>
       </main>
 
       <aside className="detail-panel">
@@ -1198,12 +1234,13 @@ function Dashboard() {
 
           <details name="detail-tools" className="sidebar-group" open>
             <summary><Layers3 /><span><strong>地图与显示</strong><small>底图 · 显示方式 · 透明度</small></span></summary>
+          <section className="control-section"><h3>图层选择</h3><div className="shaking-layer-buttons">{(['official','pga','mmi'] as LayerMode[]).map(mode=><button key={mode} type="button" aria-pressed={layerMode===mode} className={layerMode===mode?'is-active':''} onClick={()=>setLayerMode(mode)}>{layerStyle(mode).label}</button>)}</div><small>{currentStyle.note}</small></section>
           <section className="control-section live-basemap-control">
             <h3>地图底图</h3>
             <select aria-label="地图展示底图" value={liveBasemap} onChange={(e) => {const mode=e.target.value as LiveBasemap;setLiveBasemap(mode);liveBasemapRef.current=mode;baseRestartRef.current();}}>
               <option value="street">标准地图</option><option value="satellite">卫星影像</option>
             </select>
-            <small>滑坡概率图层保持叠加；卫星影像不是实时震后影像。导出底图可在导出设置中单独选择。</small>
+            <small>当前专题图层保持叠加；卫星影像不是实时震后影像。导出底图可在导出设置中单独选择。</small>
           </section>
           <section className="control-section">
             <div className="section-heading"><div><ShieldCheck /><h3>官方滑坡概率</h3></div><span className={`alert-pill ${gfAlert ?? 'none'}`}>{gfAlert ? `GF ${gfAlert.toUpperCase()}` : 'NO GF'}</span></div>
@@ -1248,7 +1285,7 @@ function Dashboard() {
             <div className="export-buttons"><button disabled={!exportBounds||exporting} onClick={()=>void exportSatelliteRaster()}><Download /><span><strong>卫星底图 GeoTIFF</strong><small>RGB · EPSG:3857 · 有地理坐标 · 不含滑坡图层</small></span></button></div>
             </details>
             <div role="status" className={`export-status ${exporting ? 'is-working' : ''}`}>{exporting && <RefreshCw className="spin" />}<span>{exportStatus}</span></div>
-            <div className="science-note"><CircleHelp /><p>GeoTIFF 与透明 PNG 使用官方原生栅格，不做插值放大；概率值为 0–1。综合成图含图外图例、指北针、比例尺、经纬度刻度和完整来源说明。{activeRasterName ? ` 当前数据：${activeRasterName}。` : ''}</p></div>
+            <div className="science-note"><CircleHelp /><p>GeoTIFF 与透明 PNG 使用官方原生栅格，不做插值放大；{currentStyle.note}综合成图含图外图例、指北针、比例尺、经纬度刻度和完整来源说明。{activeRasterName ? ` 当前数据：${activeRasterName}。` : ''}</p></div>
           </section>
           </details>
 

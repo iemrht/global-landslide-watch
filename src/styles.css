@@ -811,3 +811,5 @@ body { letter-spacing: .006em; }
   .topbar .brand strong { font-size: 15px; }
   .topbar .brand small { font-size: 7px; letter-spacing: .1em; }
 }
+
+.shaking-layer-buttons{display:grid;grid-template-columns:1fr;gap:8px;margin:12px 0}.shaking-layer-buttons button{padding:10px;border:1px solid #cbdde0;border-radius:8px;background:#fff;color:#244555;cursor:pointer}.shaking-layer-buttons button.is-active{background:#e5f5f1;border-color:#32a795;color:#14695e;font-weight:700}

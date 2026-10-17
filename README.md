@@ -2,7 +2,7 @@
 
 全球震后地震滑坡概率交互网站，纯静态部署在 GitHub Pages，不需要服务器。浏览器直接读取 USGS ComCat 地震目录与 USGS Ground Failure 产品中的官方滑坡概率栅格（主滑坡模型 Nowicki Jessee et al., 2018）。
 
-本项目由课题组“全球震后液化概率图”（MrDou01/global-liquefaction-map）改写而来：保留地震目录、地图、自动监测与成果导出框架，去掉课题组液化模型及 PGA / 烈度图层，官方图层改为滑坡概率。
+本项目由课题组“全球震后液化概率图”（MrDou01/global-liquefaction-map）改写而来：保留地震目录、地图、自动监测与成果导出框架，官方概率图层改为滑坡概率，并支持 ShakeMap PGA / MMI 图层。
 
 ## 功能
 
@@ -13,6 +13,10 @@
 - 前端访问密码（仅作一般访问控制，不等同于服务器端保密）。
 
 ## 官方文件匹配
+
+在“地图与显示 → 图层选择”切换官方滑坡概率、地震动 PGA 和地震烈度 MMI。图例、透明度、区域 GeoTIFF / PNG 和报告地图随当前图层更新。
+
+PGA / MMI 读取当前首选 ShakeMap 产品的 `download/grid.xml`；PGA 从 `%g` 转换为 `g`，MMI 保留原始数值。MMI 为修订麦加利烈度，不等同于中国地震烈度表。网格间距由端点和行列数计算，避免官方名义间距舍入造成位置偏移；缺测像元透明。目前支持不超过 400 万像元的 XML 网格；无网格或超限时明确提示原因。
 
 代码按前缀 `jessee_2018` 在 ground-failure 产品的 contents 中查找 `.tif` / `.png`，优先 `jessee_2018_model.tif`，并排除不确定度等附属文件（见 `src/App.tsx` 中的 `officialContentKey`）。若 USGS 更改命名，只需修改那里。
 
