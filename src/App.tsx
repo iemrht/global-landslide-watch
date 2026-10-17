@@ -967,7 +967,7 @@ function Dashboard() {
     let imageObjectUrl: string | null = null;
     const rasterController = new AbortController();
     setLayerError('');
-    setLayerStatus('正在读取官方滑坡概率，请稍候…');
+    setLayerStatus(`正在读取${currentStyle.label}，请稍候…`);
 
     async function drawLayer() {
       activeExportRasterRef.current = null;

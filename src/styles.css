@@ -661,10 +661,11 @@ body { letter-spacing: .006em; }
 .layer-switcher button { min-height: 40px; padding-inline: 12px; font-size: .8125rem; border-radius: 9px; white-space: nowrap; }
 .layer-switcher { max-width: calc(100% - 20px); overflow-x: auto; }
 .map-status { top: 74px; padding: 8px 12px; font-size: .75rem; border-radius: 9px; }
-.legend-card { min-width: 132px; padding: 13px 14px; border-radius: 11px; }
+.legend-card { min-width: 132px; width: max-content; max-width: min(220px, calc(100% - 20px)); padding: 13px 14px; border-radius: 11px; }
 .legend-card strong { font-size: .8125rem; }
 .legend-card span { font-size: .75rem; }
 .legend-card small, .map-attribution-note { font-size: .6875rem; }
+.legend-card small { white-space: normal; overflow-wrap: anywhere; }
 .earthquake-marker { transition: fill-opacity .18s ease, stroke-width .18s ease; }
 .earthquake-marker.is-selected { filter: drop-shadow(0 3px 5px rgba(9, 31, 44, .45)); }
 .selected-earthquake-halo {
