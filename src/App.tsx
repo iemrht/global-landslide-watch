@@ -15,6 +15,7 @@ import {
   Earth,
   FileImage,
   Filter,
+  Gauge,
   Layers3,
   LocateFixed,
   MapPinned,
@@ -1208,6 +1209,11 @@ function Dashboard() {
 
       <main className="map-workspace">
         <div ref={mapElementRef} className="map-canvas" aria-label="全球地震与滑坡概率地图" />
+        <div className="layer-switcher" role="group" aria-label="地图图层切换">
+          <button type="button" className={layerMode === 'official' ? 'is-active' : ''} aria-pressed={layerMode === 'official'} onClick={() => setLayerMode('official')}><ShieldCheck aria-hidden="true" />滑坡概率</button>
+          <button type="button" className={layerMode === 'pga' ? 'is-active' : ''} aria-pressed={layerMode === 'pga'} onClick={() => setLayerMode('pga')}><Gauge aria-hidden="true" />PGA</button>
+          <button type="button" className={layerMode === 'mmi' ? 'is-active' : ''} aria-pressed={layerMode === 'mmi'} onClick={() => setLayerMode('mmi')}><Activity aria-hidden="true" />烈度</button>
+        </div>
         <div className="map-status"><span className={layerError ? 'status-indicator error' : 'status-indicator'} /><span>{layerError || layerStatus}</span><button className="reload-map" onClick={() => { clearRemoteRasterCache(); clearShakeMapCache(); setLoadRevision((v) => v + 1); baseRestartRef.current(); }}><RefreshCw />重新加载</button></div>
         <div className="basemap-status" role="status">{basemapStatus}</div>
         <div className="legend-card"><strong>{currentStyle.label}</strong>{currentStyle.stops.map((stop) => <span key={stop.min}><i style={{ background: stop.color }} />{stop.label}</span>)}<small>{currentStyle.note}</small></div>
