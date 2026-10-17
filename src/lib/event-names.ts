@@ -1,5 +1,23 @@
 // Reviewed identities, not proximity-based names. Dates are UTC; source reports may use local time.
 export const verifiedNames: Record<string, {day: string; name: string; aliases: string; source: string}> = {
+  "usp000e12e": {
+    "day": "2005-10-08",
+    "name": "2005年克什米尔地震",
+    "aliases": "Kashmir Pakistan Muzaffarabad 克什米爾 巴基斯坦 穆扎法拉巴德 10·8",
+    "source": "https://pubs.usgs.gov/of/2006/1052/"
+  },
+  "us7000m9g4": {
+    "day": "2024-04-02",
+    "name": "2024年台湾花莲地震",
+    "aliases": "Hualien Taiwan 花蓮 臺灣 台灣 太鲁阁 太魯閣 4·3",
+    "source": "https://www.cea-igp.ac.cn/kydt/280530.html"
+  },
+  "us2000h8ty": {
+    "day": "2018-09-05",
+    "name": "2018年日本北海道胆振东部地震",
+    "aliases": "Hokkaido Iburi Chitose Atsuma 胆振東部 厚真 千岁 千歲 9·6",
+    "source": "https://www.mlit.go.jp/saigai/saigai_180906.html"
+  },
   "usp000g650": {
     "day": "2008-05-12",
     "name": "2008年四川汶川地震",
@@ -99,13 +117,13 @@ export const verifiedNames: Record<string, {day: string; name: string; aliases: 
   "us20002926": {
     "day": "2015-04-25",
     "name": "2015年尼泊尔廓尔喀地震",
-    "aliases": "Gorkha Nepal Bharatpur 加德满都 4·25",
+    "aliases": "Gorkha Nepal Bharatpur 加德满都 加德滿都 尼泊爾 廓爾喀 4·25",
     "source": "https://www.usgs.gov/publications/introduction-special-issue-25-april-2015-mw-78-gorkhanepal-earthquake"
   },
   "us1000h3p4": {
     "day": "2018-09-28",
     "name": "2018年印度尼西亚帕卢地震",
-    "aliases": "Palu Sulawesi 苏拉威西 9·28",
+    "aliases": "Palu Sulawesi 苏拉威西 印尼 9·28",
     "source": "https://www.usgs.gov/news/featured-story/magnitude-75-earthquake-near-palu-indonesia"
   },
   "us20005iis": {

@@ -12,6 +12,7 @@
     "preview": "vite preview --mode github-pages",
     "lint": "tsc -b --pretty false",
     "test:ground-failure": "node --experimental-strip-types scripts/test-ground-failure.mjs",
+    "test:event-search": "node --experimental-strip-types scripts/test-event-search.mjs",
     "set-password": "node scripts/set-password.mjs"
   },
   "dependencies": {

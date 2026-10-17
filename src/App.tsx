@@ -32,6 +32,7 @@ import { EventBrief } from '@/components/event-brief';
 import { fetchUsgs, verifiedImageUrl, liveBasemapSources, type LiveBasemap } from '@/lib/data-access';
 import { readRemoteRaster, clearRemoteRasterCache } from '@/lib/remote-raster';
 import { selectLandslideFiles } from '@/lib/ground-failure';
+import { createEventSearch } from '@/lib/event-search';
 import { applyVerifiedEventName, eventNameLabel, type EventNameKind } from '@/lib/event-names';
 import { detachMapLayer } from '@/lib/map-layer-lifecycle';
 import { focusZoom, markerPresentation, revealCountForEvent, type EventSelectionSource } from '@/lib/event-selection';
@@ -790,18 +791,13 @@ function Dashboard() {
   useEffect(() => { setReportNotes(''); }, [selectedId]);
 
   const filteredEvents = useMemo(() => {
-    const query = searchText.trim().toLocaleLowerCase('zh-CN');
+    const matchesSearch = createEventSearch(searchText);
     const regionBounds = REGIONS[region].bounds;
     return events.filter((event) => {
       const [lon, lat] = event.geometry.coordinates;
       const inRegion = !regionBounds || (lon >= regionBounds[0] && lon <= regionBounds[2] && lat >= regionBounds[1] && lat <= regionBounds[3]);
       const inViewport = !viewportOnly || !viewportBounds || viewportBounds.contains([lat, lon]);
-      const searchCorpus = [event.properties.place, event.properties.originalPlace, event.properties.eventAliases, event.id, event.properties.catalogAgency, event.properties.catalogNote]
-        .filter(Boolean)
-        .join(' ')
-        .toLocaleLowerCase('zh-CN');
-      const matches = !query || searchCorpus.includes(query);
-      return inRegion && inViewport && matches;
+      return inRegion && inViewport && matchesSearch(event);
     });
   }, [events, region, searchText, viewportBounds, viewportOnly]);
 
