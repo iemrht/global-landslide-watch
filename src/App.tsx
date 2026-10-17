@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { EventBrief } from '@/components/event-brief';
 import { fetchUsgs, verifiedImageUrl, liveBasemapSources, type LiveBasemap } from '@/lib/data-access';
 import { readRemoteRaster, clearRemoteRasterCache } from '@/lib/remote-raster';
+import { selectLandslideFiles } from '@/lib/ground-failure';
 import { applyVerifiedEventName, eventNameLabel, type EventNameKind } from '@/lib/event-names';
 import { detachMapLayer } from '@/lib/map-layer-lifecycle';
 import { focusZoom, markerPresentation, revealCountForEvent, type EventSelectionSource } from '@/lib/event-selection';
@@ -43,22 +44,6 @@ const USGS_QUERY = 'https://earthquake.usgs.gov/fdsnws/event/1/query';
 const USGS_DETAIL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail';
 const AUTO_REFRESH_MS = 60_000;
 const INITIAL_VISIBLE_EVENTS = 500;
-// USGS Ground Failure 主滑坡模型：Nowicki Jessee et al. (2018)。
-// 按前缀匹配而不写死完整文件名，排除不确定度等附属文件。
-const OFFICIAL_MODEL_PREFIX = 'jessee_2018';
-const AUXILIARY_KEY = /std|sd_|_sd|beta|unc|sigma|hazard_alert|population/i;
-function officialContentKey(contents: Record<string, UsgsContent> | undefined, extension: '.tif' | '.png') {
-  if (!contents) return undefined;
-  const preferred = `${OFFICIAL_MODEL_PREFIX}_model${extension}`;
-  if (contents[preferred]) return preferred;
-  return Object.keys(contents)
-    .filter((key) => key.startsWith(OFFICIAL_MODEL_PREFIX) && key.endsWith(extension) && !AUXILIARY_KEY.test(key))
-    .sort((a, b) => a.length - b.length)[0];
-}
-function officialContent(product: UsgsProduct | undefined, extension: '.tif' | '.png') {
-  const key = officialContentKey(product?.contents, extension);
-  return key ? product!.contents[key] : undefined;
-}
 const SATELLITE_ATTRIBUTION = 'Esri, Vantor/Maxar, Earthstar Geographics, and the GIS User Community';
 type ExportBasemap = 'satellite' | 'standard';
 const EXPORT_BASEMAPS: Record<ExportBasemap, { label: string; tileUrl: (zoom: number, y: number, x: number) => string; attribution: string; filename: string }> = {
@@ -950,8 +935,9 @@ function Dashboard() {
   const groundFailure = useMemo(() => chooseProduct(detail?.properties.products?.['ground-failure']), [detail]);
   const shakeMap = useMemo(() => chooseProduct(detail?.properties.products?.shakemap), [detail]);
   const shakeGridContent = shakeMap?.contents['download/grid.xml'];
-  const officialTifContent = officialContent(groundFailure, '.tif');
-  const officialPngContent = officialContent(groundFailure, '.png');
+  const officialFiles = useMemo(() => selectLandslideFiles(groundFailure?.contents), [groundFailure]);
+  const officialTifContent = officialFiles?.tif;
+  const officialPngContent = officialFiles?.png;
 
   const replaceOverlay = useCallback((layer: L.Layer | null) => {
     const map = mapRef.current;

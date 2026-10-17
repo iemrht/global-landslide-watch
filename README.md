@@ -18,7 +18,9 @@
 
 PGA / MMI 读取当前首选 ShakeMap 产品的 `download/grid.xml`；PGA 从 `%g` 转换为 `g`，MMI 保留原始数值。MMI 为修订麦加利烈度，不等同于中国地震烈度表。网格间距由端点和行列数计算，避免官方名义间距舍入造成位置偏移；缺测像元透明。目前支持不超过 400 万像元的 XML 网格；无网格或超限时明确提示原因。
 
-代码按前缀 `jessee_2018` 在 ground-failure 产品的 contents 中查找 `.tif` / `.png`，优先 `jessee_2018_model.tif`，并排除不确定度等附属文件（见 `src/App.tsx` 中的 `officialContentKey`）。若 USGS 更改命名，只需修改那里。
+`src/lib/ground-failure.ts` 统一选择主滑坡模型文件：优先 `jessee_2018`，缺少时兼容汶川、尼泊尔等历史产品的 `jessee_2017`。只接受该模型的 `_model.tif` / `.tif` 和 `.png` / `_model.png`，不混用不同年份的栅格与预览，也不读取标准差、其他滑坡模型或液化文件。显示、区域导出、原文件下载使用同一选择结果；界面名称和图例保持不变。
+
+汶川和尼泊尔产品的 `info.json` 将 `jessee_2017` 标为首选滑坡模型，单位为 `Proportion of area affected`，参考文献指向 Nowicki Jessee et al. (2018)。网站按原值读取，不把历史产品重新计算或标成新版结果。旧栅格可能较大，仍通过有界分块读取；缺少 Ground Failure 产品的事件不能据此补出数据。
 
 ## 色阶
 

@@ -11,6 +11,7 @@
     "build": "tsc -b && vite build --mode github-pages",
     "preview": "vite preview --mode github-pages",
     "lint": "tsc -b --pretty false",
+    "test:ground-failure": "node --experimental-strip-types scripts/test-ground-failure.mjs",
     "set-password": "node scripts/set-password.mjs"
   },
   "dependencies": {
